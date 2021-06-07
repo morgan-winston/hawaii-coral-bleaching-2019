@@ -1,3 +1,9 @@
+#### hawaii coral bleaching analysis: investigating drivers ####
+## written by: morgan winston
+
+## this script uses cluster-level data described & linked to here: {InPort record}
+## code performs the following: identifies best-fit model and creates series of plots to visualize model output and predictions
+
 # initialization ####
 # set working directory & load data
 setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/For InPort/Environmental Drivers")

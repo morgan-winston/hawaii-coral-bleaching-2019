@@ -7,7 +7,6 @@
 ### ii) explores taxa-level differences in bleaching during the 2019 marine heatwave event in hawaii using nmds plots & basic bar graphs
 
 #### initialization #### 
-
 # load packages & useful functions
 library(dplyr)
 library(tidyr) # to run complete() which adds missing combinations of data to a data frame
@@ -35,7 +34,6 @@ hcbc <- read.csv("HCBC_2019_Observations_Update_3.9.21.csv")
 
 
 #### prep data ####
-
 # rename columns 
 colnames(hcbc)[16] <- "LiveCoralCover_Perc"
 colnames(hcbc)[17] <- "LiveCoralCover_Bin"

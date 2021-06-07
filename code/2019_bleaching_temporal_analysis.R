@@ -1,20 +1,31 @@
-# load packages
+#### hawaii coral bleaching analysis: temporal trends ####
+## written by: morgan winston
+
+## this script uses cluster-level data described & linked to here: {InPort record}
+## code performs the following: investigates differences b/w 2015 & 2019 in the MHI/2014 & 2019 in the NWHI; creates figures
+
+### initialization ####
+# load packages & useful functions
 library(ggplot2) # for plotting figures
 library(plotrix) # for calculating standard error
 library(lme4) # for running linear mixed models
+library(nlme)
 library(emmeans) # for tukey post hoc tests
 library(merTools) # for running predictInterval to get CIs for mixed model
-
+library(gridExtra) # for grid.arrange() to combine multiple plots
 g_legend<-function(a.gplot){ # function to extract legend from a plot
   tmp <- ggplot_gtable(ggplot_build(a.gplot))
   leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
   legend <- tmp$grobs[[leg]]
   return(legend)}
+'%!in%' <- function(x,y)!('%in%'(x,y)) # the opposite of %in%
+
 
 # set working directory & load data
 setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/For InPort/Environmental Drivers")
 hcbc <- read.csv("HCBC_2019_ClusteredData.csv")
 
+#### prep data ####
 ## assign regions
 hcbc$Region_Name <- NA
 for(i in c(1:nrow(hcbc))){
@@ -25,7 +36,12 @@ for(i in c(1:nrow(hcbc))){
     hcbc$Region_Name[i] <- "MHI"
   }
 }
+# square-root transform response variable
 hcbc$PctBleached_mean_sqrt <- sqrt(hcbc$CoralBleached_Perc_mn)
+
+# only working with zones (MHI)/islands (NWHI) surveyed in both years (and have to meet min sample size of clustered obs per depth bin per zone)
+## ^ subsetting already done, use weighting column here
+hcbc <- hcbc[ which(!is.na(hcbc$Weights_TemporalAnalysis)),]
 
 #### data analysis ####
 # a. island differences 2015 v 2019 (MHI only) ####
@@ -60,6 +76,23 @@ p_bl[ which(p_bl$p.value < 0.05),]
 # mean bleaching per island
 aggregate(hcbc_mhi$CoralBleached_Perc_mn, by = list(Island = hcbc_mhi$Island_Name, Obs_Year = hcbc_mhi$Obs_Year), mean)
 
+# get mhi predictions
+head(hcbc_mhi)
+new_mhi <- unique(hcbc_mhi[c("Island_Name","ZoneName","Obs_Year")])
+bl_mhi <- lme(PctBleached_mean_sqrt ~ Obs_Year*ZoneName, random=~1|Island_Name, method = "ML", data=hcbc_mhi, weights = ~Weights_TemporalAnalysis)
+new_mhi$predlme <- predict(bl_mhi, newdata = new_mhi, level = "0") # predicted value of bleaching based on mod
+des = model.matrix(formula(bl_mhi)[-2], new_mhi) # predictor values
+predvar = diag( des %*% vcov(bl_mhi) %*% t(des) ) 
+new_mhi$lower = with(new_mhi, predlme - 2*sqrt(predvar) )
+new_mhi$upper = with(new_mhi, predlme + 2*sqrt(predvar) )
+new_mhi$Label <- c("NW", "SW", "S", "NE", "W", "NW", "WNW",  "S", "E", 
+                   "NW", "SW", "NE", "S", "W", "WNW", "NW",  "E", "S")
+# add post hoc significance to zone data
+# zones with significant differences between years: Hawaii NW, Hawaii SW, Maui W 
+new_mhi$group <- c("a", "a", "NS", "NS", "a", "NS", "NS", "NS", "NS",
+                   "b", "b", "NS", "NS", "b", "NS", "NS", "NS", "NS")
+
+
 # b. island differences 2014 v 2019 (NWHI only) #### 
 hcbc_nwhi <- hcbc[ which(hcbc$Region_Name == "NWHI"),]
 str(hcbc_nwhi)
@@ -72,7 +105,19 @@ plot(bl_nwhi)
 
 emmeans(bl_nwhi, list(pairwise ~ Obs_Year + Island_Name), adjust = "tukey") # tukey post-hoc test - NS as predicted from non-sig interaction effect above
 
-#### PLOTS ####
+predict.dat.nwhi <- as.data.frame(predict(bl_nwhi, hcbc_nwhi, interval = "confidence"))
+predict.nwhi <- cbind(hcbc_nwhi, predict.dat.nwhi)
+colnames(predict.nwhi)
+colnames(predict.nwhi)[25] <- "predlme"
+colnames(predict.nwhi)[26] <- "lower"
+colnames(predict.nwhi)[27] <- "upper"
+new_nwhi <- unique(predict.nwhi[c(1,2,20,25,26,27)])
+new_nwhi$Label <- c("","","","")
+new_nwhi$group <- c("NS","NS","NS","NS")
+
+
+#### create plots ####
+# ordering x axis
 order <- c("PHR", "Lisianski", "Oahu", "Lanai", "Maui", "Hawaii")
 order_full <- c("Pearl and Hermes", "Lisianski", "Oahu", "Lanai", "Maui", "Hawaii")
 hcbc <- hcbc[order(factor(hcbc$Island_Name, levels = order_full)),] # order it
@@ -80,8 +125,9 @@ hcbc$Island_Name <- factor(hcbc$Island_Name, levels = order_full, labels = c("PH
 hcbc$Region_Name <- factor(hcbc$Region_Name, levels = c("NWHI", "MHI"), labels = c("Northwestern Hawaiian Islands", "Main Hawaiian Islands"))
 hcbc$Obs_Year <- as.factor(hcbc$Obs_Year)
 
+# i. boxplots ####
 # PLOT ISLAND LEVEL RESULTS 
-# boxplot per island
+# boxplot per island across archipelago
 isl_raw_temp_plot <- ggplot(hcbc, aes(x = Island_Name, y = CoralBleached_Perc_mn)) +
   geom_jitter(aes(x = Island_Name, y = CoralBleached_Perc_mn, size = Weights_TemporalAnalysis, color = Obs_Year), width = 0.2) +
   geom_boxplot(aes(fill = Obs_Year), outlier.shape = NA, alpha = 0.6) +
@@ -114,7 +160,7 @@ for(i in c(1:nrow(hcbc))){
   }  
 }
 
-mhi <- hcbc[ which(hcbc$Region_Name == "MHI"),]
+mhi <- hcbc[ which(hcbc$Region_Name == "Main Hawaiian Islands"),]
 mhi$Obs_Year <- factor(mhi$Obs_Year, levels = c("2014","2015","2019"))
 zone_raw_temp_plot_mhi <-
   ggplot(mhi, aes(x = ZoneName, y = CoralBleached_Perc_mn)) +
@@ -144,7 +190,8 @@ zone_raw_temp_plot_mhi <-
   scale_fill_manual(name = "Year", values = c("#00BA38","#619CFF")) +
   scale_y_continuous(limits = c(-1,100))
 
-nwhi_box <- ggplot(hcbc[ which(hcbc$Region_Name == "NWHI"),], aes(x = Island_Name, y = CoralBleached_Perc_mn)) +
+# island level box plot in NWHI
+nwhi_box <- ggplot(hcbc[ which(hcbc$Region_Name == "Northwestern Hawaiian Islands"),], aes(x = Island_Name, y = CoralBleached_Perc_mn)) +
   geom_jitter(aes(x = Island_Name, y = CoralBleached_Perc_mn, size = Weights_TemporalAnalysis, color = Obs_Year), width = 0.2) +
   geom_boxplot(aes(fill = Obs_Year), outlier.shape = NA, alpha = 0.6) +
   facet_grid(~Island_Name, scales = "free_x", space = "free") +
@@ -170,6 +217,7 @@ nwhi_box <- ggplot(hcbc[ which(hcbc$Region_Name == "NWHI"),], aes(x = Island_Nam
   scale_x_discrete(labels = c("","")) +
   scale_y_continuous(limits = c(-1,100))
 
+# island level across archipelago
 boxplot_zone_leg <- ggplot(hcbc, aes(x = Island_Name, y = CoralBleached_Perc_mn)) +
   geom_jitter(aes(x = Island_Name, y = CoralBleached_Perc_mn, size = Weights_TemporalAnalysis, color = Obs_Year), width = 0.2) +
   geom_boxplot(aes(fill = Obs_Year), outlier.shape = NA, alpha = 0.6) +
@@ -195,41 +243,10 @@ boxplot_zone_leg <- ggplot(hcbc, aes(x = Island_Name, y = CoralBleached_Perc_mn)
   scale_fill_manual(name = "Year", values = c("#F8766D", "#00BA38", "#619CFF"))
 box.leg <- g_legend(boxplot_zone_leg)
 
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Figures/Temporal")
-png(width = 800, height = 450, filename = "Bleaching_Temporal_Zone_Boxplot.png")
+# finest scale possible across archipelago - boxplot
 grid.arrange(arrangeGrob(nwhi_box, zone_raw_temp_plot_mhi, nrow = 1, widths = c(1.1,3)), box.leg, nrow = 2, heights = c(9,1))
-dev.off()
 
-# PLOT MODEL PREDICTIONS #### (zone level for MHI, island level for NWHI)
-# get nwhi predictions
-predict.dat.nwhi <- as.data.frame(predict(bl_nwhi, hcbc[ which(hcbc$Region_Name == "Northwestern Hawaiian Islands"),], interval = "confidence"))
-predict.nwhi <- cbind(hcbc[ which(hcbc$Region_Name == "NWHI"),], predict.dat.nwhi)
-colnames(predict.nwhi)
-colnames(predict.nwhi)[21] <- "predlme"
-colnames(predict.nwhi)[22] <- "lower"
-colnames(predict.nwhi)[23] <- "upper"
-new_nwhi <- unique(predict.nwhi[c(1,11,14,21,22,23)])
-new_nwhi$Label <- c("","","","")
-new_nwhi$group <- c("NS","NS","NS","NS")
-
-# get mhi predictions
-head(hcbc_mhi)
-new_mhi <- unique(hcbc_mhi[c("Island_Name","ZoneName","Year")])
-bl_mhi <- lme(PctBleached_mean_sqrt ~ Obs_Year*ZoneName, random=~1|Island_Name, method = "ML", data=hcbc_mhi, weights = ~Weights_TemporalAnalysis)
-new_mhi$predlme <- predict(bl_mhi, newdata = new_mhi, level = "0") # predicted value of bleaching based on mod
-des = model.matrix(formula(bl_mhi)[-2], new_mhi) # predictor values
-predvar = diag( des %*% vcov(bl_mhi) %*% t(des) ) 
-new_mhi$lower = with(new_mhi, predlme - 2*sqrt(predvar) )
-new_mhi$upper = with(new_mhi, predlme + 2*sqrt(predvar) )
-new_mhi$Label <- c("NW", "SW", "S", "NE", "W", "NW", "WNW",  "S", "E", 
-                   "NW", "SW", "NE", "S", "W", "WNW", "NW",  "E", "S")
-# add post hoc significance to zone data
-# zones with significant differences between years: Hawaii NW, Hawaii SW, Maui W 
-new_mhi$group <- c("a", "a", "NS", "NS", "a", "NS", "NS", "NS", "NS",
-                   "b", "b", "NS", "NS", "b", "NS", "NS", "NS", "NS")
-
-
-# PLOT ZONE LEVEL RESULTS #
+# ii. plot model predictions #### 
 temp <- rbind(new_mhi, new_nwhi)
 temp <- temp[order(factor(temp$Island_Name, levels = order_full)),] # order it
 

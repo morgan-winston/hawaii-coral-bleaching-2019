@@ -1,10 +1,10 @@
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/For InPort/Environmental Drivers")
-hcbc <- read.csv("HCBC_2019_ClusteredData.csv")
-head(hcbc)
+#### hawaii coral bleaching analysis: spatial variability ####
+## written by: morgan winston
 
-hcbc_clust <- hcbc[ which(hcbc$Obs_Year == "2019"),]
+## this script uses cluster-level data described & linked to here: {InPort record}
+## code performs the following: investigates differences b/w locations (zones in MHI, islands in NWHI); creates figures
 
-#### INITIALIZATION ####
+#### initialization ####
 # load packages
 library(ggplot2) # for plotting figures
 library(plotrix) # for calculating standard error
@@ -14,12 +14,16 @@ library(multcomp) # for assigning letters of pair wise comparisons
 library(data.table)
 library(gridExtra)
 
-# setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data") # set working directory 
-# hcbc_clust <- read.csv("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/Current Database/For Analysis/Analysis Ready/HCBC_2019_SpatialAnalysis.csv") # read in RVA data
+# set working directory & load data
+setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/For InPort/Environmental Drivers")
+hcbc <- read.csv("HCBC_2019_ClusteredData.csv")
+head(hcbc)
 
-hcbc_clust$PctBleached_mean_sqrt <- sqrt(hcbc_clust$CoralBleached_Perc_mn)
+#### data prep ####
+hcbc_clust <- hcbc[ which(hcbc$Obs_Year == "2019"),] # only looking @ 2019 variability across space here
+hcbc_clust$PctBleached_mean_sqrt <- sqrt(hcbc_clust$CoralBleached_Perc_mn) # square-root transform response variable
 
-## assign regions
+# assign regions
 hcbc_clust$Region_Name <- NA
 for(i in c(1:nrow(hcbc_clust))){
   if(hcbc_clust$Island_Name[i] %in% c("French Frigate Shoals", "Lisianski", "Pearl and Hermes", "Kure")){
@@ -30,8 +34,8 @@ for(i in c(1:nrow(hcbc_clust))){
   }
 }
 
-#### EXAMINE 2019 SPATIAL TRENDS ####
-## compare response across finest spatial scale possible (zones in MHI, isl/atolls in NWHI)
+#### data analysis ####
+# compare response across finest spatial scale possible (zones in MHI, isl/atolls in NWHI)
 mod_sp <- aov(PctBleached_mean_sqrt ~ ZoneName, data = hcbc_clust, weights = Weights_DriversAndSpatialAnalysis)
 summary(mod_sp) # significant difference p < 0.0001 ***
 
@@ -116,10 +120,7 @@ zone_raw_plot_mhi <- ggplot(hcbc_clust[ which(hcbc_clust$Region_Name == "MHI"),]
   ylab("% Coral Cover Bleached\n") +
   scale_x_discrete(breaks = hcbc_clust$ZoneName, labels =  hcbc_clust$ZoneLabel) 
 
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Figures/Spatial")
-png(width = 1050, height = 650, filename = 'Zone_Spatial_Boxplot.png')
 grid.arrange(zone_raw_plot_nwhi, zone_raw_plot_mhi, nrow = 1, widths = c(1.1,3))
-dev.off()
 
 # plot predictions with 95% CI as error bars and sig letters
 zone_pred_plot_nwhi <- ggplot(hcbc_clust[ which(hcbc_clust$Region_Name == "NWHI"),], aes(x = Island_Name, y = predict_ble, fill = Island_Name)) +
@@ -178,7 +179,4 @@ zone_pred_plot_mhi <- ggplot(hcbc_clust[ which(hcbc_clust$Region_Name == "MHI"),
   scale_x_discrete(breaks = hcbc_clust$ZoneName, labels =  hcbc_clust$ZoneLabel) +
   geom_text(aes(x=ZoneName,y=error_sp+predict_ble,label=.group),vjust=-0.5)
 
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Figures/Spatial")
-png(width = 1050, height = 650, filename = 'Zone_Spatial_Pred.png')
 grid.arrange(zone_pred_plot_nwhi, zone_pred_plot_mhi, nrow = 1, widths = c(1.1,3))
-dev.off()

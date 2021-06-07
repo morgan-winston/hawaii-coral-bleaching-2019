@@ -6,6 +6,8 @@
 ### i) adds depth bins, and transforms the data from long to wide
 ### ii) explores taxa-level differences in bleaching during the 2019 marine heatwave event in hawaii using nmds plots & basic bar graphs
 
+#### initialization #### 
+
 # load packages & useful functions
 library(dplyr)
 library(tidyr) # to run complete() which adds missing combinations of data to a data frame

@@ -71,7 +71,8 @@ for(i in c(1:nrow(hcbc))){
 
 # add median bin value of bleaching and live coral cover to observations missing measurement (i.e. only recorded bins)
 # read in supplemental data: "BinConversion.csv" found in data > supplemental within repo 
-# BinLU=read.csv("BinConversion.csv") - this dataframe gives min, max, and median of percentages per bin level 
+setwd("~/GitHub/hawaii-coral-bleaching-2019/data/supplemental")
+BinLU=read.csv("BinConversion.csv") # this dataframe gives min, max, and median of percentages per bin level 
 hcbc[ which(is.na(hcbc$CoralBleached_Perc)),]$CoralBleached_Perc <- BinLU$Median[match(hcbc[ which(is.na(hcbc$CoralBleached_Perc)),]$CoralBleached_Bin, BinLU$Bin)] # bleaching
 hcbc[ which(is.na(hcbc$LiveCoralCover_Perc)),]$LiveCoralCover_Perc <- BinLU$Median[match(hcbc[ which(is.na(hcbc$LiveCoralCover_Perc)),]$LiveCoralCover_Bin, BinLU$Bin)] # live coral cover
 
@@ -109,16 +110,27 @@ hcbc_taxa <- hcbc_taxa[ which(hcbc_taxa$TaxonCode != ""),] # remove rows where t
 hcbc_taxa <- hcbc_taxa[ which(!is.na(hcbc_taxa$Taxon_CoralBleached_Perc)),] # only use taxa-level data where % bleaching was recorded
 
 # add columns for full species and genera names
-# read in supplemental data: "Genus_lookup.csv" found in data > supplemental within repo 
-# lookup <- read.csv("Genus_lookup.csv") # look-up table for taxa code to full name
-colnames(lookup)[2] <- "TaxonCode"
-hcbc_taxa <- merge(hcbc_taxa, lookup, by = "TaxonCode", all.x = TRUE)
+# read in supplemental data: "TaxaLookup_Susceptibility.csv" - description & link here: {Insert InPort Record Link}
+setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/For InPort/Environmental Drivers")
+lookup <- read.csv("TaxaLookup_Susceptibility.csv") # look-up table for taxa code to full name
+colnames(lookup)[1] <- "TaxonCode"
+hcbc_taxa <- merge(hcbc_taxa, lookup[c(1:3)], by = "TaxonCode", all.x = TRUE)
 hcbc_taxa$GENUSNAME <- paste(word(hcbc_taxa$TAXONNAME, 1), "spp.", sep = " ")
 hcbc_taxa$TAXON_N <- paste(substr(hcbc_taxa$TAXONNAME, 1, 1), ". ", word(hcbc_taxa$TAXONNAME, 2), sep = "")
 colnames(hcbc_taxa)
 
-# add in site susceptibility data
-s <- read.csv("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/Current Database/For Analysis/Supplemental Data/HCBC_2019_SiteSusceptibilityScores.csv")
+# remove soft corals
+hcbc_taxa <- hcbc_taxa[ which(hcbc_taxa$TaxonCode != "PASP"),]
+
+# add in site susceptibility data - calculate using taxa level susceptibility scores
+hcbc_taxa$TaxonScore <- lookup$SUSCP_SCORE[match(hcbc_taxa$TaxonCode, lookup$TaxonCode)] # assign the taxa score per row of observations
+hcbc_taxa$TaxonAbundScore <- (hcbc_taxa$Taxon_CoralCover_Perc*hcbc_taxa$TaxonScore) # calculate % cov * score (PS) per taxa
+
+s <- aggregate(list(SiteTaxonScoreSum = hcbc_taxa$TaxonAbundScore, SiteTaxaLiveCover = hcbc_taxa$Taxon_CoralCover_Perc),
+               by = list(Survey_Name = hcbc_taxa$Survey_Name, 
+                         LiveCoralCover_Perc = hcbc_taxa$LiveCoralCover_Perc), 
+               sum) # add up PS per site
+s$SiteSuscep <- s$SiteTaxonScoreSum/s$SiteTaxaLiveCover # convert score relative to total % cover at site
 hcbc_taxa$SiteSuscp <- s$SiteSuscep[match(hcbc_taxa$Survey_Name, s$Survey_Name)] # add scores into working data
 head(hcbc_taxa)
 
@@ -132,12 +144,12 @@ hcbc_taxa$Taxon_CoralCover_Prop_rel <- hcbc_taxa$Taxon_CoralCover_Perc_rel/100
 hcbc2 <- hcbc_taxa[ which(hcbc_taxa$Survey_Name != "HAW-TNC-5C"),]
 
 # taxa matrix set-up: need to transform the data frame - long to wide at the survey level
-taxa.livecov <- reshape(hcbc2[,c(1,2,31)], idvar = "Survey_Name", timevar = "TaxonCode", direction = "wide") ## we want to create the matrix with relative cover of each coral taxa
+taxa.livecov <- reshape(hcbc2[,c(1,2,33)], idvar = "Survey_Name", timevar = "TaxonCode", direction = "wide") ## we want to create the matrix with relative cover of each coral taxa
 names(taxa.livecov) <- gsub("Taxon_CoralCover_Prop_rel.", "", names(taxa.livecov))
 taxa.livecov[is.na(taxa.livecov)] <- 0
 
 # cluster info table - island, survey, survey level suscp, survey level % bleaching
-cluster.info <- unique(hcbc2[,c(2,12,22,29)])
+cluster.info <- unique(hcbc2[,c(2,12,22,31)])
 
 # convert to matrices
 taxa.livecov_m <- as.matrix(taxa.livecov[,-1])
@@ -223,10 +235,7 @@ shapes <- ggplot() + # just make this plot to get the legend
 
 shape_leg <- g_legend(shapes)
 
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Figures/Taxa")
-png(width = 1150, height = 950, filename = "NMDS_plots_new.png")
 grid.arrange(ble, arrangeGrob(suscp, shape_leg,nrow = 1, widths = c(10,2)), nrow = 1, widths = c(2,2.4))
-dev.off()
 
 
 #### BAR PLOTS ####
@@ -325,7 +334,4 @@ isl.tax <- ggplot(hcbc_sp.2, aes(x = TAXONNAME, y = TaxonPctBleached_mean, fill 
   coord_flip() +
   ggtitle("b)")
 
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Figures/Taxa")
-png(width = 1500, height = 650, filename = "Taxa_Bar.png")
 grid.arrange(dom.tax, isl.tax, nrow = 1, bottom = text_grob("% of Live Coral Cover Bleached", size = 18))
-dev.off()

@@ -9,5 +9,5 @@ This repository contains code used to analyze the 2019 coral bleaching data coll
 6) "2019_bleaching_temporal_analysis.R" This script analyzes differences in the 2019 bleaching response to the bleaching response experienced during the last major bleaching event prior (2015 in the Main Hawaiian Islands; 2014 in the Northwestern Hawaiian Islands). 
 
 These scripts use data that has been archived and documented in InPort. 
-To learn more about and to access the cluster-level data used in the spatial, temporal, and taxa-level analyses, visit: https://www.fisheries.noaa.gov/inport/item/64324
-To learn more about and to access the site-level data used in the taxa-level analysis, visit: https://www.fisheries.noaa.gov/inport/item/59191
+- To learn more about and to access the cluster-level data used in the spatial, temporal, and taxa-level analyses, visit: https://www.fisheries.noaa.gov/inport/item/64324
+- To learn more about and to access the site-level data used in the taxa-level analysis, visit: https://www.fisheries.noaa.gov/inport/item/59191

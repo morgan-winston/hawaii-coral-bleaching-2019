@@ -70,9 +70,7 @@ for(i in c(1:nrow(hcbc))){
 }
 
 # add median bin value of bleaching and live coral cover to observations missing measurement (i.e. only recorded bins)
-# read in supplemental data: "BinConversion.csv" found in data > supplemental within repo 
-setwd("~/GitHub/hawaii-coral-bleaching-2019/data/supplemental")
-BinLU=read.csv("BinConversion.csv") # this dataframe gives min, max, and median of percentages per bin level 
+BinLU <- data.frame(Bin = c(0,1,2,3,4,5), Min = c(0,1,11,31,51,76), Max = c(0,10,30,50,75,100), Median = c(0,6,21,41,63,88))
 hcbc[ which(is.na(hcbc$CoralBleached_Perc)),]$CoralBleached_Perc <- BinLU$Median[match(hcbc[ which(is.na(hcbc$CoralBleached_Perc)),]$CoralBleached_Bin, BinLU$Bin)] # bleaching
 hcbc[ which(is.na(hcbc$LiveCoralCover_Perc)),]$LiveCoralCover_Perc <- BinLU$Median[match(hcbc[ which(is.na(hcbc$LiveCoralCover_Perc)),]$LiveCoralCover_Bin, BinLU$Bin)] # live coral cover
 

@@ -85,12 +85,12 @@ des = model.matrix(formula(bl_mhi)[-2], new_mhi) # predictor values
 predvar = diag( des %*% vcov(bl_mhi) %*% t(des) ) 
 new_mhi$lower = with(new_mhi, predlme - 2*sqrt(predvar) )
 new_mhi$upper = with(new_mhi, predlme + 2*sqrt(predvar) )
-new_mhi$Label <- c("NW", "SW", "S", "NE", "W", "NW", "WNW",  "S", "E", 
-                   "NW", "SW", "NE", "S", "W", "WNW", "NW",  "E", "S")
+new_mhi$Label <- sub('.*\\_', '', new_mhi$ZoneName)
+
 # add post hoc significance to zone data
 # zones with significant differences between years: Hawaii NW, Hawaii SW, Maui W 
-new_mhi$group <- c("a", "a", "NS", "NS", "a", "NS", "NS", "NS", "NS",
-                   "b", "b", "NS", "NS", "b", "NS", "NS", "NS", "NS")
+new_mhi$group <- c("b", "NS", "NS", "NS", "b", "NS", "NS", "b", "NS",
+                   "NS", "a", "a", "a", "NS", "NS", "NS", "NS", "NS")
 
 
 # b. island differences 2014 v 2019 (NWHI only) #### 
@@ -263,7 +263,8 @@ leg_bar <- ggplot(temp, aes(ZoneName, predlme, fill = Obs_Year)) +  # make a fak
   geom_bar(stat = "identity", position = position_dodge(width = 0.9), width = 0.9, color="black") +
   theme(
     legend.direction = "horizontal"
-  )
+  ) +
+  scale_fill_discrete(name = "Year")
 temp_leg <- g_legend(leg_bar)
 
 nwhi_bar <- ggplot(temp[ which(temp$Island_Name %in% c("Pearl and Hermes", "Lisianski")),], aes(ZoneName, predlme, fill = Obs_Year)) + # nwhi plot
@@ -283,7 +284,7 @@ nwhi_bar <- ggplot(temp[ which(temp$Island_Name %in% c("Pearl and Hermes", "Lisi
   ) +
   xlab("") +
   ylab("Predicted % Coral Cover Bleached\n") +
-  scale_y_continuous(limits = c(0,10), breaks = c(0,2.5, 5, 7.5, 10), labels = c(0,5,25,56.25,100)) +
+  scale_y_continuous(limits = c(0,11.35), breaks = c(0,2.5, 5, 7.5, 10), labels = c(0,5,25,56,100)) +
   scale_x_discrete(breaks = temp$Zone, labels = temp$Label) +
   geom_text(data=temp[ which(temp$Island_Name %in% c("Pearl and Hermes", "Lisianski")),],aes(x=ZoneName,y=upper,
                                                                                              label=group),
@@ -305,11 +306,13 @@ mhi_bar <- ggplot(temp[ which(temp$Island_Name %!in% c("Pearl and Hermes", "Lisi
         strip.text = element_text(size = 12),
         axis.line = element_line(color = "black"),
         text = element_text(size = 12),
-        axis.text.y = element_text(colour="black")
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y =element_blank()
   ) +
   xlab("") +
   ylab("Predicted % Coral Cover Bleached\n") +
-  scale_y_continuous(breaks = c(0,2.5, 5, 7.5, 10), labels = c(0,5,25,56.25,100)) +
+  scale_y_continuous(limits = c(0,11.35), breaks = c(0,2.5, 5, 7.5, 10), labels = c(0,5,25,56,100)) +
   scale_x_discrete(breaks = temp$Zone, labels = temp$Label) +
   geom_text(data=temp[ which(temp$Island_Name %!in% c("Pearl and Hermes", "Lisianski")),],aes(x=ZoneName,y=upper,
                                                                                               label=group),

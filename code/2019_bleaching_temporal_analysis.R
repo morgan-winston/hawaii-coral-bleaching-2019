@@ -1,7 +1,7 @@
 #### hawaii coral bleaching analysis: temporal trends ####
 ## written by: morgan winston
 
-## this script uses cluster-level data described & linked to here: {InPort record}
+## this script uses cluster-level data described & linked to here: {https://www.fisheries.noaa.gov/inport/item/64324}
 ## code performs the following: investigates differences b/w 2015 & 2019 in the MHI/2014 & 2019 in the NWHI; creates figures
 
 ### initialization ####
@@ -148,7 +148,7 @@ isl_raw_temp_plot <- ggplot(hcbc, aes(x = Island_Name, y = CoralBleached_Perc_mn
   scale_size_continuous(name = "Weight") +
   scale_fill_discrete(name = "Year") +
   scale_color_discrete(guide = F) +
-  ylab(" % Coral Cover Bleached\n") +
+  ylab(" % Bleached\n") +
   xlab("") 
 
 # PLOT ZONE LEVEL RESULTS 
@@ -173,21 +173,22 @@ zone_raw_temp_plot_mhi <-
         panel.spacing = unit(0, "lines"), 
         strip.background = element_blank(),
         strip.placement = "outside",
-        legend.position = "none",
+        legend.position = "bottom",
         axis.line = element_line(color = "black"),
         panel.border = element_rect(colour = "black", fill=NA),
         axis.text.x = element_text(colour="black"), 
-        text = element_text(size = 12),
-        axis.ticks.y = element_blank(),
-        axis.text.y = element_blank()
+        text = element_text(size = 18)#,
+        # axis.ticks.y = element_blank()#,
+        # axis.text.y = element_blank()
   ) + 
   scale_size_continuous(name = "Weight", limits = c(0.01,1)) +
   #scale_color_discrete(guide = F) +
-  ylab("") +
+  ylab("% Bleached \n") +
   xlab("") +
   scale_x_discrete(breaks = hcbc$ZoneName, labels =  hcbc$ZoneLabel) +
   scale_color_manual(values = c("#00BA38","#619CFF")) +
   scale_fill_manual(name = "Year", values = c("#00BA38","#619CFF")) +
+  guides(color = F)
   scale_y_continuous(limits = c(-1,100))
 
 # island level box plot in NWHI
@@ -206,11 +207,11 @@ nwhi_box <- ggplot(hcbc[ which(hcbc$Region_Name == "Northwestern Hawaiian Island
         panel.border = element_rect(colour = "black", fill=NA),
         axis.text.x = element_text(colour="black"), 
         axis.text.y = element_text(colour="black"),
-        text = element_text(size = 12),
+        text = element_text(size = 18),
         axis.ticks.x = element_blank()
   ) + 
   scale_size_continuous(name = "Weight", limits = c(0.01,1)) +
-  ylab(" % Coral Cover Bleached\n") +
+  ylab(" % Bleached\n") +
   xlab("") + 
   scale_color_manual(values = c("#F8766D", "#619CFF")) +
   scale_fill_manual(name = "Year", values = c("#F8766D", "#619CFF")) +
@@ -218,7 +219,7 @@ nwhi_box <- ggplot(hcbc[ which(hcbc$Region_Name == "Northwestern Hawaiian Island
   scale_y_continuous(limits = c(-1,100))
 
 # island level across archipelago
-boxplot_zone_leg <- ggplot(hcbc, aes(x = Island_Name, y = CoralBleached_Perc_mn)) +
+boxplot_isl_leg <- ggplot(hcbc, aes(x = Island_Name, y = CoralBleached_Perc_mn)) +
   geom_jitter(aes(x = Island_Name, y = CoralBleached_Perc_mn, size = Weights_TemporalAnalysis, color = Obs_Year), width = 0.2) +
   geom_boxplot(aes(fill = Obs_Year), outlier.shape = NA, alpha = 0.6) +
   facet_grid(~Island_Name, scales = "free_x", space = "free") +
@@ -233,18 +234,19 @@ boxplot_zone_leg <- ggplot(hcbc, aes(x = Island_Name, y = CoralBleached_Perc_mn)
         panel.border = element_rect(colour = "black", fill=NA),
         axis.text.x = element_text(colour="black"), 
         axis.text.y = element_text(colour="black"),
-        text = element_text(size = 12),
+        text = element_text(size = 18),
         axis.ticks.x = element_blank()
   ) + 
   scale_size_continuous(name = "Weight", limits = c(0.01,1)) +
-  ylab(" % Coral Cover Bleached\n") +
+  ylab(" % Bleached\n") +
   xlab("") + 
   scale_color_manual(values = c("#F8766D", "#00BA38", "#619CFF")) +
-  scale_fill_manual(name = "Year", values = c("#F8766D", "#00BA38", "#619CFF"))
-box.leg <- g_legend(boxplot_zone_leg)
+  scale_fill_manual(name = "Year", values = c("#F8766D", "#00BA38", "#619CFF")) + 
+  guides(color = F)
+box.leg <- g_legend(boxplot_isl_leg)
 
 # finest scale possible across archipelago - boxplot
-grid.arrange(arrangeGrob(nwhi_box, zone_raw_temp_plot_mhi, nrow = 1, widths = c(1.1,3)), box.leg, nrow = 2, heights = c(9,1))
+grid.arrange(arrangeGrob(nwhi_box, boxplot_isl_leg, nrow = 1, widths = c(1.1,3)), box.leg, nrow = 2, heights = c(9,1))
 
 # ii. plot model predictions #### 
 temp <- rbind(new_mhi, new_nwhi)
@@ -262,7 +264,9 @@ leg_bar <- ggplot(temp, aes(ZoneName, predlme, fill = Obs_Year)) +  # make a fak
   facet_grid(~Isl_Lab, scales = "free_x", space = "free") +
   geom_bar(stat = "identity", position = position_dodge(width = 0.9), width = 0.9, color="black") +
   theme(
-    legend.direction = "horizontal"
+    legend.direction = "horizontal",
+    legend.text = element_text(size = 8),
+    legend.title = element_text(size = 8)
   ) +
   scale_fill_discrete(name = "Year")
 temp_leg <- g_legend(leg_bar)
@@ -276,20 +280,20 @@ nwhi_bar <- ggplot(temp[ which(temp$Island_Name %in% c("Pearl and Hermes", "Lisi
         panel.spacing = unit(0, "lines"),
         strip.background = element_blank(),
         strip.placement = "outside",
-        strip.text = element_text(size = 12),
+        strip.text = element_text(size = 8),
         axis.line = element_line(color = "black"),
         axis.ticks.x = element_blank(),
-        text = element_text(size = 12),
+        text = element_text(size = 8),
         axis.text.y = element_text(colour="black")
   ) +
   xlab("") +
-  ylab("Predicted % Coral Cover Bleached\n") +
+  ylab("Predicted % Bleached\n") +
   scale_y_continuous(limits = c(0,11.35), breaks = c(0,2.5, 5, 7.5, 10), labels = c(0,5,25,56,100)) +
   scale_x_discrete(breaks = temp$Zone, labels = temp$Label) +
   geom_text(data=temp[ which(temp$Island_Name %in% c("Pearl and Hermes", "Lisianski")),],aes(x=ZoneName,y=upper,
                                                                                              label=group),
             position = position_dodge(width = 1),
-            vjust = -0.5) +
+            vjust = -0.5, size = 2) +
   geom_errorbar(aes(ymin=lower, ymax=upper), width=.2,
                 position=position_dodge(.9)) +
   scale_fill_manual(name = "Year", values = c("#F8766D","#619CFF"))
@@ -303,24 +307,27 @@ mhi_bar <- ggplot(temp[ which(temp$Island_Name %!in% c("Pearl and Hermes", "Lisi
         panel.spacing = unit(0, "lines"),
         strip.background = element_blank(),
         strip.placement = "outside",
-        strip.text = element_text(size = 12),
+        strip.text = element_text(size = 8),
         axis.line = element_line(color = "black"),
-        text = element_text(size = 12),
+        text = element_text(size = 8),
         axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
         axis.title.y =element_blank()
   ) +
   xlab("") +
-  ylab("Predicted % Coral Cover Bleached\n") +
+  ylab("Predicted % Bleached\n") +
   scale_y_continuous(limits = c(0,11.35), breaks = c(0,2.5, 5, 7.5, 10), labels = c(0,5,25,56,100)) +
   scale_x_discrete(breaks = temp$Zone, labels = temp$Label) +
   geom_text(data=temp[ which(temp$Island_Name %!in% c("Pearl and Hermes", "Lisianski")),],aes(x=ZoneName,y=upper,
                                                                                               label=group),
             position = position_dodge(width = 1),
-            vjust = -0.5) +
+            vjust = -0.5, size = 2) +
   geom_errorbar(aes(ymin=lower, ymax=upper), width=.2,
                 position=position_dodge(.9)) +
   scale_fill_manual(name = "Year", values = c("#00BA38","#619CFF"))
 
+setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Drafts/For Submission - PLoS One/Figures")
+tiff("Fig5.tiff", width = 2250, height = 1200, units = "px", res=300)
+grid.arrange(arrangeGrob(nwhi_bar + theme(legend.position = "none"), mhi_bar +ylab("") + theme(legend.position = "none"), nrow = 1, widths = c(1,3)), temp_leg, heights = c(9,1))
+dev.off()
 
-grid.arrange(arrangeGrob(nwhi_bar + theme(legend.position = "none"), mhi_bar +ylab("") + theme(legend.position = "none"), nrow = 1, widths = c(1,3)), temp_leg, heights = c(10,1))

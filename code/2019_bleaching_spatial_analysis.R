@@ -1,7 +1,7 @@
 #### hawaii coral bleaching analysis: spatial variability ####
 ## written by: morgan winston
 
-## this script uses cluster-level data described & linked to here: {InPort record}
+## this script uses cluster-level data described & linked to here: {https://www.fisheries.noaa.gov/inport/item/64324}
 ## code performs the following: investigates differences b/w locations (zones in MHI, islands in NWHI); creates figures
 
 #### initialization ####
@@ -93,7 +93,7 @@ zone_raw_plot_nwhi <- ggplot(hcbc_clust[ which(hcbc_clust$Region_Name == "NWHI")
   ) +
   scale_fill_manual(values = c("#08306B","#08306B","#08306B","#08306B")) +
   xlab("") +
-  ylab("% Coral Cover Bleached\n") +
+  ylab("% Bleached\n") +
   scale_x_discrete(labels = c("","","","")) 
 
 zone_raw_plot_mhi <- ggplot(hcbc_clust[ which(hcbc_clust$Region_Name == "MHI"),], aes(x = ZoneName, y = CoralBleached_Perc_mn)) +
@@ -117,14 +117,14 @@ zone_raw_plot_mhi <- ggplot(hcbc_clust[ which(hcbc_clust$Region_Name == "MHI"),]
   scale_fill_manual(values = blues_6, guide = F) +
   scale_size_continuous(name = "Weight") +
   xlab("") +
-  ylab("% Coral Cover Bleached\n") +
+  ylab("% Bleached\n") +
   scale_x_discrete(breaks = hcbc_clust$ZoneName, labels =  hcbc_clust$ZoneLabel) 
 
 grid.arrange(zone_raw_plot_nwhi, zone_raw_plot_mhi, nrow = 1, widths = c(1.1,3))
 
 # plot predictions with 95% CI as error bars and sig letters
 zone_pred_plot_nwhi <- ggplot(hcbc_clust[ which(hcbc_clust$Region_Name == "NWHI"),], aes(x = Island_Name, y = predict_ble, fill = Island_Name)) +
-  geom_bar(stat = "identity", position = position_dodge(), color = "black") +
+  geom_bar(stat = "identity", position = position_dodge(), size = 0.3, color = "black") +
   facet_grid(~Island_Name, scales = "free_x", space = "free") +
   theme_bw() +
   theme(panel.grid.major = element_blank(),
@@ -132,27 +132,27 @@ zone_pred_plot_nwhi <- ggplot(hcbc_clust[ which(hcbc_clust$Region_Name == "NWHI"
         panel.spacing = unit(0, "lines"),
         strip.background = element_blank(),
         strip.placement = "outside",
-        strip.text = element_text(size = 18),
+        strip.text = element_text(size = 8),
         legend.position = "none",
         axis.line = element_line(color = "black"),
-        text = element_text(size = 18),
+        text = element_text(size = 8),
         axis.text.y = element_text(colour="black"),
         axis.ticks.x = element_blank()
         #axis.text.x = element_blank()
   ) +
   scale_fill_manual(values = c("#08306B","#08306B","#08306B","#08306B")) +
   xlab("") +
-  ylab("Predicted % Coral Cover Bleached\n") +
+  ylab("Predicted % Bleached\n") +
   scale_y_continuous(limits = c(-1.1,10),breaks = c(0,2.5, 5, 7.5, 10), labels = c(0,5,25,56.25,100)) +
   geom_errorbar(aes(ymin = predict_ble - error_sp, 
                     ymax = predict_ble + error_sp),
-                width=.2,
+                width=.2, size = 0.3,
                 position=position_dodge(.9)) +
   scale_x_discrete(labels = c("","","","")) +
-  geom_text(aes(x=Island_Name,y=error_sp+predict_ble,label=.group),vjust=-0.5)
+  geom_text(aes(x=Island_Name,y=error_sp+predict_ble,label=.group),vjust=-0.5, size = 2)
 
 zone_pred_plot_mhi <- ggplot(hcbc_clust[ which(hcbc_clust$Region_Name == "MHI"),], aes(x = ZoneName, y = predict_ble, fill = Island_Name)) +
-  geom_bar(stat = "identity", position = position_dodge(), color = "black") +
+  geom_bar(stat = "identity", position = position_dodge(), size = 0.3, color = "black") +
   facet_grid(~Island_Name, scales = "free_x", space = "free") +
   theme_bw() +
   theme(panel.grid.major = element_blank(),
@@ -160,23 +160,26 @@ zone_pred_plot_mhi <- ggplot(hcbc_clust[ which(hcbc_clust$Region_Name == "MHI"),
         panel.spacing = unit(0, "lines"),
         strip.background = element_blank(),
         strip.placement = "outside",
-        strip.text = element_text(size = 18),
+        strip.text = element_text(size = 8),
         legend.position = "none",
         axis.line = element_line(color = "black"),
-        text = element_text(size = 18),
+        text = element_text(size = 8),
         axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
         axis.title.y =element_blank()
   ) +
   scale_fill_manual(values = blues_6) +
   xlab("") +
-  ylab("Predicted % Coral Cover Bleached\n") +
+  ylab("Predicted % Bleached\n") +
   scale_y_continuous(limits = c(-1.10,10),breaks = c(0,2.5, 5, 7.5, 10), labels = c(0,5,25,56.25,100)) +
   geom_errorbar(aes(ymin = predict_ble - error_sp, 
                     ymax = predict_ble + error_sp),
-                width=.2,
+                width=.2, size = 0.3,
                 position=position_dodge(.9)) +
   scale_x_discrete(breaks = hcbc_clust$ZoneName, labels =  hcbc_clust$ZoneLabel) +
-  geom_text(aes(x=ZoneName,y=error_sp+predict_ble,label=.group),vjust=-0.5)
+  geom_text(aes(x=ZoneName,y=error_sp+predict_ble,label=.group),vjust=-0.5, size = 2)
 
+setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Drafts/For Submission - PLoS One/Figures")
+tiff("Fig4.tiff", width = 2250, height = 1000, units = "px", res=300)
 grid.arrange(zone_pred_plot_nwhi, zone_pred_plot_mhi, nrow = 1, widths = c(1.1,3))
+dev.off()

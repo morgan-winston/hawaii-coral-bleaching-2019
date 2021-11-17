@@ -15,6 +15,7 @@ library(rgdal)
 library(plyr)
 
 #### import shapefile ####
+## shapefile available for download here: https://www.nodc.noaa.gov/archive/arc0186/0239862/1.1/data/0-data/
 # setwd("~/Morgan Winston/Projects/Satellite Course/Shapefiles")
 # isl=st_read('haw_isl_6km_buffer.shp') # load island shapefiles (6km buffer around each island of interest)
 # ## this shapefile has an attribute table that has the name of each island

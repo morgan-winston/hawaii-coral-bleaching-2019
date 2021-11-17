@@ -1,4 +1,3 @@
-
 # load libraries
 library(sp)
 library(raster)
@@ -27,8 +26,10 @@ register_google(key = ggmapAPI)
 # set working directory
 setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching")
 # import zone shapefile - readOGR() converts the shapefile into a Spatial Polygons Data Frame
+## shapefile available for download here: https://www.nodc.noaa.gov/archive/arc0186/0239862/1.1/data/0-data/
 zones = readOGR("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/Current Database/For Analysis/Shapefiles/HCBC_Zones.shp")
 # import 2019 coral bleaching observations at the cluster level
+## cluster level bleaching data & metadata described and linked to here: https://www.fisheries.noaa.gov/inport/item/64324
 h_19 = read.csv("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/Current Database/For Analysis/Analysis Ready/HCBC_2019_SpatialAnalysis.csv")
 
 # convert the 2019 bleaching observations to a spatial points data frame for mapping

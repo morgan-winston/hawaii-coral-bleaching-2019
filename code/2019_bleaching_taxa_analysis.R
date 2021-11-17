@@ -1,7 +1,7 @@
 #### hawaii coral bleaching analysis: taxonomic variability ####
 ## written by: morgan winston
 
-## this script uses survey-level data described & linked to here: {InPort record}
+## this script uses survey-level data described & linked to here: https://www.fisheries.noaa.gov/inport/item/59191
 ## code performs the following:
 ### i) adds depth bins, and transforms the data from long to wide
 ### ii) explores taxa-level differences in bleaching during the 2019 marine heatwave event in hawaii using nmds plots & basic bar graphs
@@ -28,10 +28,7 @@ g_legend<-function(a.gplot){
   return(legend)} # function to extract legend from plot
 
 # set working directory: setwd("")
-# import data: hcbc <- read.csv("") # data accessible at: 
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/For InPort/Version III")
-hcbc <- read.csv("HCBC_2019_Observations_Update_3.9.21.csv")
-
+# import data: hcbc <- read.csv("")
 
 #### prep data ####
 # rename columns 
@@ -108,7 +105,7 @@ hcbc_taxa <- hcbc_taxa[ which(hcbc_taxa$TaxonCode != ""),] # remove rows where t
 hcbc_taxa <- hcbc_taxa[ which(!is.na(hcbc_taxa$Taxon_CoralBleached_Perc)),] # only use taxa-level data where % bleaching was recorded
 
 # add columns for full species and genera names
-# read in supplemental data: "TaxaLookup_Susceptibility.csv" - description & link here: {Insert InPort Record Link}
+# read in supplemental data: "TaxaLookup_Susceptibility.csv" - description & link here: https://www.fisheries.noaa.gov/inport/item/64775
 setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/For InPort/Environmental Drivers")
 lookup <- read.csv("TaxaLookup_Susceptibility.csv") # look-up table for taxa code to full name
 colnames(lookup)[1] <- "TaxonCode"
@@ -175,8 +172,8 @@ head(species.scores)  # look at the data
 
 # color by suscp plot
 suscp <- ggplot() + 
-  geom_point(data=data.scores,aes(x=NMDS1,y=NMDS2,colour=sus,shape=isl),size=4) + # add the point markers
-  geom_text(data=species.scores,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.5) +  # add the species labels
+  geom_point(data=data.scores,aes(x=NMDS1,y=NMDS2,colour=sus,shape=isl),size=1) + # add the point markers
+  geom_text(data=species.scores,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.5, size = 1.5) +  # add the species labels
   scale_color_viridis_c(name = "b) Taxonomic Susceptibility Score", limits = c(-0.01, log(4)), breaks = c(log(1), log(2), log(3), log(4)), labels = c(1,2,3,4)) +
   scale_fill_discrete(name = "Island") +
   coord_equal() +
@@ -184,57 +181,59 @@ suscp <- ggplot() +
   theme(axis.text.x = element_blank(),  # remove x-axis text
         axis.text.y = element_blank(), # remove y-axis text
         axis.ticks = element_blank(),  # remove axis ticks
-        axis.title.x = element_text(size=18), # remove x-axis labels
-        axis.title.y = element_text(size=18), # remove y-axis labels
+        axis.title.x = element_text(size=8), # remove x-axis labels
+        axis.title.y = element_text(size=8), # remove y-axis labels
         panel.background = element_blank(), 
         panel.grid.major = element_blank(),  #remove major-grid labels
         panel.grid.minor = element_blank(),  #remove minor-grid labels
         plot.background = element_blank(),
         legend.position = "top", legend.box="vertical", legend.margin=margin(),
-        legend.text = element_text(size = 18),
-        legend.title = element_text(size = 18))+
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 8))+
   scale_shape_manual(name = "Island", values = c(15,16,17,18), guide = F) +
-  guides(color=guide_colourbar(barwidth=10))
+  guides(color=guide_colourbar(barwidth=5, barheight=0.5))
 
 
 # color by bleaching plot
 ble <- ggplot() + 
-  geom_point(data=data.scores,aes(x=NMDS1,y=NMDS2,colour=ble,shape=isl),size=4) + # add the point markers
-  geom_text(data=species.scores,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.5) +  # add the species labels
-  scale_color_viridis_c(name = "a) % of Live Coral Cover Bleached", breaks = c(0,2.5,5,7.5,10), labels = c(0,(2.5^2),(5^2),(7.5^2),(10^2))) +
+  geom_point(data=data.scores,aes(x=NMDS1,y=NMDS2,colour=ble,shape=isl),size=1) + # add the point markers
+  geom_text(data=species.scores,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.5, size = 1.5) +  # add the species labels
+  scale_color_viridis_c(name = "a) % Bleached", breaks = c(0,2.5,5,7.5,10), labels = c(0,(2.5^2),(5^2),(7.5^2),(10^2))) +
   scale_fill_discrete(name = "Island") +
   coord_equal() +
   theme_bw() + 
   theme(axis.text.x = element_blank(),  # remove x-axis text
         axis.text.y = element_blank(), # remove y-axis text
         axis.ticks = element_blank(),  # remove axis ticks
-        axis.title.x = element_text(size=18), # remove x-axis labels
-        axis.title.y = element_text(size=18), # remove y-axis labels
+        axis.title.x = element_text(size=8), # remove x-axis labels
+        axis.title.y = element_text(size=8), # remove y-axis labels
         panel.background = element_blank(), 
         panel.grid.major = element_blank(),  #remove major-grid labels
         panel.grid.minor = element_blank(),  #remove minor-grid labels
         plot.background = element_blank(),
         legend.position = "top", legend.box="vertical", legend.margin=margin(),
-        legend.text = element_text(size = 18),
-        legend.title = element_text(size = 18))+
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 8))+
   scale_shape_manual(name = "Island", values = c(15,16,17,18), guide = F) +
-  guides(color=guide_colourbar(barwidth=11))
+  guides(color=guide_colourbar(barwidth=6, barheight = 0.5))
 
 
 shapes <- ggplot() + # just make this plot to get the legend
-  geom_point(data=data.scores,aes(x=NMDS1,y=NMDS2,shape=isl),size=4) + # add the point markers
+  geom_point(data=data.scores,aes(x=NMDS1,y=NMDS2,shape=isl),size=2) + # add the point markers
   geom_text(data=species.scores,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.5) +
   scale_shape_manual(name = "Island", values = c(15,16,17,18)) +
   theme(
     legend.box="vertical", legend.margin=margin(),
-    legend.text = element_text(size = 18),
-    legend.title = element_text(size = 18)
+    legend.text = element_text(size = 8),
+    legend.title = element_text(size = 8)
   )
 
 shape_leg <- g_legend(shapes)
 
-grid.arrange(ble, arrangeGrob(suscp, shape_leg,nrow = 1, widths = c(10,2)), nrow = 1, widths = c(2,2.4))
-
+setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Drafts/For Submission - PLoS One/Figures")
+tiff("Fig2.tiff", width = 2200, height = 900, units = "px", res=300)
+grid.arrange(ble, arrangeGrob(suscp, shape_leg,nrow = 1, widths = c(2,1)), nrow = 1, widths = c(2,2.5))
+dev.off()
 
 #### BAR PLOTS ####
 # show mean % bleaching per species per island, colored by mean absolute % cover of the species per island 
@@ -280,8 +279,8 @@ hcbc_sp.2<- merge(hcbc_sp, isl, all = TRUE)
 # create plots
 ## domain level
 dom.tax <- ggplot(isl_sp, aes(x = TAXONNAME, y = TaxonPctBleached_mean, fill =  TaxonLiveCoralCover_mean_abs)) +
-  geom_bar(stat = 'identity', position = position_dodge(), color = "black") +
-  geom_errorbar(aes(ymin=TaxonPctBleached_mean-TaxonPctBleached_se, ymax=TaxonPctBleached_mean+TaxonPctBleached_se),  color = "black", width=.2,
+  geom_bar(stat = 'identity', position = position_dodge(), size = 0.3, color = "black") +
+  geom_errorbar(aes(ymin=TaxonPctBleached_mean-TaxonPctBleached_se, ymax=TaxonPctBleached_mean+TaxonPctBleached_se), size = 0.3,color = "black", width=.2,
                 position=position_dodge(.9)) +
   theme(
     panel.grid.major = element_blank(), 
@@ -291,25 +290,25 @@ dom.tax <- ggplot(isl_sp, aes(x = TAXONNAME, y = TaxonPctBleached_mean, fill =  
     strip.background = element_blank(),
     strip.placement = "outside",
     axis.text.y = element_text(hjust = 1, face = "italic"),
-    legend.position = c(0.8,0.1),
+    legend.position = c(0.6,0.15),
     legend.direction = "horizontal",
     legend.box = "horizontal",
-    legend.title = element_text(size = 15),
-    text = element_text(size = 18),
-    title = element_text(size = 15)
+    legend.title = element_text(size = 8),
+    text = element_text(size = 8),
+    title = element_text(size = 8)
   ) +
   xlab("") +
   ylab("") +
   scale_y_continuous(expand = c(0,0), limits = c(-1,105)) +
-  scale_fill_viridis_c(name = "Absolute Live Coral Cover (%)", guide = guide_colourbar(title.position = "top", barwidth = 10)) +
+  scale_fill_viridis_c(name = "Absolute Live Coral Cover (%)", guide = guide_colourbar(title.position = "top", barwidth = 5, barheight = 0.75)) +
   coord_flip() +
   ggtitle("a)") 
 
 ## island level
 isl.tax <- ggplot(hcbc_sp.2, aes(x = TAXONNAME, y = TaxonPctBleached_mean, fill =  TaxonLiveCoralCover_mean_abs)) +
-  geom_bar(stat = 'identity', position = position_dodge(), color = "black") +
+  geom_bar(stat = 'identity', position = position_dodge(), color = "black", size = 0.2) +
   facet_wrap(~ Island_Name, scales = 'free_y') +
-  geom_errorbar(aes(ymin=TaxonPctBleached_mean-TaxonPctBleached_se, ymax=TaxonPctBleached_mean+TaxonPctBleached_se),  color = "black", width=.2,
+  geom_errorbar(aes(ymin=TaxonPctBleached_mean-TaxonPctBleached_se, ymax=TaxonPctBleached_mean+TaxonPctBleached_se), size = 0.3, color = "black", width=.2,
                 position=position_dodge(.9)) +
   theme(
     panel.grid.major = element_blank(), 
@@ -322,8 +321,8 @@ isl.tax <- ggplot(hcbc_sp.2, aes(x = TAXONNAME, y = TaxonPctBleached_mean, fill 
     legend.position = "none",
     #legend.title = element_blank(),
     #legend.text = element_text(face = "italic"),
-    text = element_text(size = 18),
-    title = element_text(size = 15)
+    text = element_text(size = 8),
+    title = element_text(size = 8)
   ) +
   xlab("") +
   ylab("") +
@@ -332,4 +331,6 @@ isl.tax <- ggplot(hcbc_sp.2, aes(x = TAXONNAME, y = TaxonPctBleached_mean, fill 
   coord_flip() +
   ggtitle("b)")
 
-grid.arrange(dom.tax, isl.tax, nrow = 1, bottom = text_grob("% of Live Coral Cover Bleached", size = 18))
+tiff("Fig3.tiff", width = 2250, height = 1100, units = "px", res=300)
+grid.arrange(dom.tax, isl.tax, nrow = 1, bottom = text_grob("% Bleached", size = 8))
+dev.off()

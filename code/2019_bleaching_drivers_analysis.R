@@ -1,22 +1,31 @@
 #### hawaii coral bleaching analysis: investigating drivers ####
 ## written by: morgan winston
 
-## this script uses cluster-level data described & linked to here: {InPort record}
+## this script uses cluster-level data described & linked to here: {https://www.fisheries.noaa.gov/inport/item/64324}
 ## code performs the following: identifies best-fit model and creates series of plots to visualize model output and predictions
 
 # initialization ####
 # set working directory & load data
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/For InPort/Environmental Drivers")
-hcbc <- read.csv("HCBC_2019_ClusteredData.csv")
+# setwd() <- your working directory
+# hcbc <- read.csv() <- name of bleaching data once downloaded
 
 # load packages
 library(ggmap) # for plotting
 library(car) # for our variance inflation test
 library(MASS) # for stepAIC()
 library(plotrix) # for std.error
+library(dplyr) # for mutate()
+library(stringr) 
+library(rgdal)
+library(sf)
+library(raster)
+library(scales) # for hue_pal()
+library(gridExtra) # for combining multiple plots in one 
+library(ggpubr) # for text_grob() function
+library(rgeos)
 
 # load googlemaps API Key
-ggmapAPI = readChar("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/Tom's Mapping Example/morgan.winston_googlemapsAPIkey.txt",nchars = 39)
+#ggmapAPI = readChar() <- insert file path/name of your api key
 register_google(key = ggmapAPI)
 
 # load useful functions
@@ -30,6 +39,10 @@ g_legend<-function(a.gplot){ # function to extract legend from a plot
 # subset data ####
 hcbc_complete <- hcbc[complete.cases(hcbc[c("kdPAR_mn", "SiteSuscp_mn","PAR_surface_mn","PctBleached_hist_mn","WaveAction_value_mn")]),]
 hcbc_complete <- hcbc_complete[ which(hcbc_complete$Depth_ft < 60),] # no deep surveys included
+
+hcbc_complete$DepthBin <- sub("^\\S+\\s+", '', as.character(hcbc_complete$Cluster_DepthBin_ID))
+
+hcbc_complete$Weights_DriversAndSpatialAnalysis <- hcbc_complete$Inverse_SE
 
 # standardize & center drivers to put all on the same scale ####
 # if values include 0, sqrt trans
@@ -48,29 +61,29 @@ hcbc_complete$Urban_runoff_mn_sqrt_s <- as.vector(scale(sqrt(hcbc_complete$Urban
 hcbc_complete$kdPAR_mn_s <- as.vector(scale(hcbc_complete$kdPAR_mn))
 hcbc_complete$SST_Variability_AllB4_mn_s <- as.vector(scale(hcbc_complete$SST_Variability_AllB4_mn))
 
-# check for correlations ####
-full_pred <- hcbc_complete[,c("Depth_ft_mn_s",
-                              "SiteSuscp_mn_log_s",
-                              "DHW.MeanMax.YR01_mn_s",
-                              "DHW.MeanMax.YR10YR01_mn_s",
-                              "PctBleached_hist_mn_s",
-                              "SST_Variability_AllB4_mn_s",
-                              "PAR_surface_mn_s",
-                              "kdPAR_mn_s",
-                              "WaveAction_value_mn_sqrt_s",
-                              "TotalEffluent_mn_sqrt_s",
-                              "TourRec_10yrAvgPUD_mn_log_s",
-                              "AgGolf_runoff_mn_sqrt_s",
-                              "Urban_runoff_mn_sqrt_s")]
-pred_cor <- cor(full_pred)
-head(round(pred_cor,2))
-corrplot::corrplot(pred_cor, method="circle") # looks pretty good (why? no coefficients > 0.6 or < -0.6)
-pairs(full_pred)
-full_mod_corrplot <- ggcorrplot(pred_cor,
-                                 hc.order = TRUE,
-                                 type = "lower",
-                                 lab = TRUE)
-full_mod_pairsplot <- ggpairs(full_pred)
+# # check for correlations ####
+# full_pred <- hcbc_complete[,c("Depth_ft_mn_s",
+#                               "SiteSuscp_mn_log_s",
+#                               "DHW.MeanMax.YR01_mn_s",
+#                               "DHW.MeanMax.YR10YR01_mn_s",
+#                               "PctBleached_hist_mn_s",
+#                               "SST_Variability_AllB4_mn_s",
+#                               "PAR_surface_mn_s",
+#                               "kdPAR_mn_s",
+#                               "WaveAction_value_mn_sqrt_s",
+#                               "TotalEffluent_mn_sqrt_s",
+#                               "TourRec_10yrAvgPUD_mn_log_s",
+#                               "AgGolf_runoff_mn_sqrt_s",
+#                               "Urban_runoff_mn_sqrt_s")]
+# pred_cor <- cor(full_pred)
+# head(round(pred_cor,2))
+# corrplot::corrplot(pred_cor, method="circle") # looks pretty good (why? no coefficients > 0.6 or < -0.6)
+# pairs(full_pred)
+# full_mod_corrplot <- ggcorrplot(pred_cor,
+#                                  hc.order = TRUE,
+#                                  type = "lower",
+#                                  lab = TRUE)
+# full_mod_pairsplot <- ggpairs(full_pred)
 
 ### ### ### ### ### ### ### ### ### ### ### 
 # model selection -- using stepAIC() ####
@@ -79,28 +92,30 @@ full_mod_pairsplot <- ggpairs(full_pred)
 hcbc_complete$PctBleached_mean_sqrt <- sqrt(hcbc_complete$CoralBleached_Perc_mn)
 
 # run model first with no interactions to assess VIF
-mod_full <- lm(PctBleached_mean_sqrt ~
-                     DHW.MeanMax.YR01_mn_s +
-                     DHW.MeanMax.YR10YR01_mn_s +
-                     Depth_ft_mn_s +
-                     PctBleached_hist_mn_s +
-                     SiteSuscp_mn_log_s +
-                     SST_Variability_AllB4_mn_s +
-                     kdPAR_mn_s +
-                     PAR_surface_mn_s +
-                     WaveAction_value_mn_sqrt_s +
-                     TotalEffluent_mn_sqrt_s +
-                     TourRec_10yrAvgPUD_mn_log_s +
-                     AgGolf_runoff_mn_sqrt_s +
-                     Urban_runoff_mn_sqrt_s,
-                hcbc_complete,
-                weights = Weights_DriversAndSpatialAnalysis)
-step_mod_bic <- stepAIC(mod_full, k = log(nrow(hcbc_complete)))
-summary(step_mod_bic)
-
-# variance inflaction factors #### 
-# checks for collinearity
-vif(step_mod_bic) # looks good, all < 2 (if > 4 then that is bad)
+# mod_full <- lm(PctBleached_mean_sqrt ~
+#                      DHW.MeanMax.YR01_mn_s +
+#                      DHW.MeanMax.YR10YR01_mn_s +
+#                      Depth_ft_mn_s +
+#                      PctBleached_hist_mn_s +
+#                      SiteSuscp_mn_log_s +
+#                      SST_Variability_AllB4_mn_s +
+#                      kdPAR_mn_s +
+#                      PAR_surface_mn_s +
+#                      WaveAction_value_mn_sqrt_s +
+#                      TotalEffluent_mn_sqrt_s +
+#                      TourRec_10yrAvgPUD_mn_log_s +
+#                      AgGolf_runoff_mn_sqrt_s +
+#                      Urban_runoff_mn_sqrt_s,
+#                 hcbc_complete,
+#                 weights = Weights_DriversAndSpatialAnalysis)
+# step_mod_bic <- stepAIC(mod_full, k = log(nrow(hcbc_complete)))
+# summary(step_mod_bic)
+# 
+# # variance inflaction factors #### 
+# # checks for collinearity
+# vif(step_mod_bic) # looks good, all < 2 (if > 4 then that is bad)
+# 
+# hcbc_complete2 <- hcbc_complete[ which(hcbc_complete$ZoneName != "Hawaii_SW"),]
 
 # now testing interactions that we have hypotheses about 
 mod_full_2 <- lm(PctBleached_mean_sqrt ~ 
@@ -148,9 +163,8 @@ final_mod <- step_mod_bic_2
 
 # perform visual examination of residuals ####
 ## are the assumptions of normality, homogeneity, and independence met?
-par(mfrow = c(2, 2))
-plot(final_mod)
-
+# par(mfrow = c(2, 2))
+# plot(final_mod)
 
 ### ### ### ### ### ### ### ### ### ### ### 
 # PLOTS ####
@@ -167,34 +181,34 @@ sum.co$Variable <- factor(sum.co$Variable, levels = var_ord)
 sum.co <- sum.co[order(factor(sum.co$Variable, levels = var_ord)),]
 sum.co$Variable_plot <- factor(c("x", 
                                  "Acute Thermal Stress x Historical Thermal Stress",
-                                 "Historical Bleaching",
+                                 "Historical % Bleached",
                                  "Susceptibility",
                                  "Acute Thermal Stress",
                                  "Urban Run-off",
                                  "Depth",
-                                 "Acute Thermal Stress x Tourism",
+                                 "Acute Thermal Stress x Tourism & Recreation",
                                  "Susceptibility x Urban Run-off",
-                                 "Historical Bleaching x Susceptibility",
-                                 "Surface PAR",
-                                 "Effluent",
+                                 "Historical % Bleached x Susceptibility",
+                                 "Surface Light",
+                                 "Sewage Effluent",
                                  "Depth x Susceptibility",
                                  "Historical Thermal Stress",
-                                 "Tourism"), 
+                                 "Tourism & Recreation"), 
                                levels = c("x", 
                                           "Acute Thermal Stress x Historical Thermal Stress",
-                                          "Historical Bleaching",
+                                          "Historical % Bleached",
                                           "Susceptibility",
                                           "Acute Thermal Stress",
                                           "Urban Run-off",
                                           "Depth",
-                                          "Acute Thermal Stress x Tourism",
+                                          "Acute Thermal Stress x Tourism & Recreation",
                                           "Susceptibility x Urban Run-off",
-                                          "Historical Bleaching x Susceptibility",
-                                          "Surface PAR",
-                                          "Effluent",
+                                          "Historical % Bleached x Susceptibility",
+                                          "Surface Light",
+                                          "Sewage Effluent",
                                           "Depth x Susceptibility",
                                           "Historical Thermal Stress",
-                                          "Tourism"))
+                                          "Tourism & Recreation"))
 
 sum.co$Sig <- NA
 sum.co <- transform(sum.co, 
@@ -246,7 +260,6 @@ dev.off()
 
 
 ## ii. MARGINAL RESIDUALS PER VARIABLE ####
-
 # function to predict bleaching and create a plot based on variable of interest
 margResidplot.fun <- function(var, mod, dat){
   m <- mod # set final model
@@ -305,17 +318,17 @@ margResidplot.fun <- function(var, mod, dat){
   }
   
   ggplot() + 
-    geom_point(data=d, aes(x = .data[[v]], y =residuals.var, size = Inverse_SE)) + 
+    geom_point(data=d, aes(x = .data[[v]], y =residuals.var, size = Weights_DriversAndSpatialAnalysis)) + 
     geom_ribbon(data=new_temp, aes(x=.data[[v]], ymin=Predict.lwr-int_var, ymax=Predict.upr-int_var), alpha= 0.2, fill="black") +
     geom_line(data=new_temp, aes(x= .data[[v]], y=Predict.fit-int_var), color=pcol, size = 1) +
     theme_bw() +
     theme(
       axis.title.y = element_blank(),
       axis.title = element_text(face = "bold"),
-      text = element_text(size = 18),
+      text = element_text(size = 8),
       panel.grid = element_blank()
     ) +
-    scale_size_continuous(guide = F) +
+    scale_size_continuous(guide = F, range = c(0.1,2.5)) +
     scale_y_continuous(breaks = c(-7.5,-5,-2.5,0,2.5,5,7.5,10), labels = c(-(7.5^2), -(5^2), -(2.5^2), 0, (2.5^2), (5^2), (7.5^2), (10^2))) 
 }
 
@@ -338,24 +351,24 @@ urb_sd <- sd(sqrt(hcbc_complete$Urban_runoff_mn))
 tou_mn <- mean(log(hcbc_complete$TourRec_10yrAvgPUD_mn))
 tou_sd <- sd(log(hcbc_complete$TourRec_10yrAvgPUD_mn))
 
-par_resid_plot <- margResidplot.fun("PAR_surface_mn_s", final_mod, hcbc_complete) + xlab("Surface Light (PAR)") + scale_x_continuous(breaks = c((42.5-par_mn)/par_sd, (45-par_mn)/par_sd, (47.5-par_mn)/par_sd), labels = c(42.5, 45, 47.5))  # unscale x axis
-dhw1_resid_plot <-  margResidplot.fun("DHW.MeanMax.YR01_mn_s", final_mod, hcbc_complete) + xlab("Acute Thermal Stress (DHW)") + scale_x_continuous(breaks = c((0-dhw1_mn)/dhw1_sd, (3-dhw1_mn)/dhw1_sd, (6-dhw1_mn)/dhw1_sd, (9-dhw1_mn)/dhw1_sd), labels = c(0,3,6,9)) 
-dhw10_resid_plot <-  margResidplot.fun("DHW.MeanMax.YR10YR01_mn_s", final_mod, hcbc_complete) + xlab("Historical Thermal Stress (DHW)") + scale_x_continuous(breaks = c((0-dhw10_mn)/dhw10_sd, (3-dhw10_mn)/dhw10_sd, (6-dhw10_mn)/dhw10_sd, (9-dhw10_mn)/dhw10_sd, (12-dhw10_mn)/dhw10_sd), labels = c(0,3,6,9,12)) 
+par_resid_plot <- margResidplot.fun("PAR_surface_mn_s", final_mod, hcbc_complete) + xlab("Surface Light") + scale_x_continuous(breaks = c((42.5-par_mn)/par_sd, (45-par_mn)/par_sd, (47.5-par_mn)/par_sd), labels = c(42.5, 45, 47.5))  # unscale x axis
+dhw1_resid_plot <-  margResidplot.fun("DHW.MeanMax.YR01_mn_s", final_mod, hcbc_complete) + xlab("Acute Thermal Stress") + scale_x_continuous(breaks = c((0-dhw1_mn)/dhw1_sd, (3-dhw1_mn)/dhw1_sd, (6-dhw1_mn)/dhw1_sd, (9-dhw1_mn)/dhw1_sd), labels = c(0,3,6,9)) 
+dhw10_resid_plot <-  margResidplot.fun("DHW.MeanMax.YR10YR01_mn_s", final_mod, hcbc_complete) + xlab("Historical Thermal Stress") + scale_x_continuous(breaks = c((0-dhw10_mn)/dhw10_sd, (3-dhw10_mn)/dhw10_sd, (6-dhw10_mn)/dhw10_sd, (9-dhw10_mn)/dhw10_sd, (12-dhw10_mn)/dhw10_sd), labels = c(0,3,6,9,12)) 
 suscp_resid_plot <- margResidplot.fun("SiteSuscp_mn_log_s", final_mod, hcbc_complete) + xlab("Susceptibiity Score") +  scale_x_continuous(breaks = c((log(2)-sus_mn)/sus_sd, (log(2.5)-sus_mn)/sus_sd, (log(3)-sus_mn)/sus_sd, (log(3.5)-sus_mn)/sus_sd, (log(4)-sus_mn)/sus_sd), labels = seq(2,4,by=.5)) 
-depth_resid_plot <- margResidplot.fun("Depth_ft_mn_s", final_mod, hcbc_complete) + xlab("Depth (ft)") + scale_x_continuous(breaks = c((10-dep_mn)/dep_sd, (30-dep_mn)/dep_sd, (50-dep_mn)/dep_sd, (70-dep_mn)/dep_sd), labels = c(10,30,50,70)) 
-hist_resid_plot <-  margResidplot.fun("PctBleached_hist_mn_s", final_mod, hcbc_complete) + xlab("Historical Bleaching (%)") +  scale_x_continuous(breaks = c((10-hist_mn)/hist_sd, (20-hist_mn)/hist_sd, (30-hist_mn)/hist_sd, (40-hist_mn)/hist_sd, (50-hist_mn)/hist_sd, (60-hist_mn)/hist_sd), labels = c(10, 20,30,40,50,60))
+depth_resid_plot <- margResidplot.fun("Depth_ft_mn_s", final_mod, hcbc_complete) + xlab("Depth") + scale_x_continuous(breaks = c((10-dep_mn)/dep_sd, (30-dep_mn)/dep_sd, (50-dep_mn)/dep_sd, (70-dep_mn)/dep_sd), labels = c(10,30,50,70)) 
+hist_resid_plot <-  margResidplot.fun("PctBleached_hist_mn_s", final_mod, hcbc_complete) + xlab("Historical Bleaching") +  scale_x_continuous(breaks = c((10-hist_mn)/hist_sd, (20-hist_mn)/hist_sd, (30-hist_mn)/hist_sd, (40-hist_mn)/hist_sd, (50-hist_mn)/hist_sd, (60-hist_mn)/hist_sd), labels = c(10, 20,30,40,50,60))
 eff_resid_plot <- margResidplot.fun("TotalEffluent_mn_sqrt_s", final_mod, hcbc_complete) + xlab("Sewage Effluent") + scale_x_continuous(breaks = c((sqrt(0)-eff_mn)/eff_sd, (sqrt(1000)-eff_mn)/eff_sd, (sqrt(10000)-eff_mn)/eff_sd, (sqrt(30000)-eff_mn)/eff_sd), labels = c(0,1000,10000,30000)) 
 urb_resid_plot <-  margResidplot.fun("Urban_runoff_mn_sqrt_s", final_mod, hcbc_complete) + xlab("Urban Run-off") +  scale_x_continuous(breaks = c((sqrt(0)-urb_mn)/urb_sd, (sqrt(0.05)-urb_mn)/urb_sd, (sqrt(0.2)-urb_mn)/urb_sd, (sqrt(0.4)-urb_mn)/urb_sd, (sqrt(0.6)-urb_mn)/urb_sd), labels = c(0,0.05,0.2,0.4,0.6))
 tour_resid_plot <-  margResidplot.fun("TourRec_10yrAvgPUD_mn_log_s", final_mod, hcbc_complete) + xlab("Tourism & Recreation") +  scale_x_continuous(breaks = c((log(1)-tou_mn)/tou_sd, (log(10)-tou_mn)/tou_sd, (log(100)-tou_mn)/tou_sd, (log(1000)-tou_mn)/tou_sd), labels = c(1,10,100,1000))
 
 # save legend as separate plot (use the legend from parameter estimate plots!)
-mylegend<-g_legend(ggplot(sum.co, aes(x = Variable_plot, y = Estimate, color = SigLeg)) + theme(legend.text = element_text(size = 18), legend.title = element_text(size = 18), legend.position = "bottom", legend.direction = "horizontal") +
+mylegend<-g_legend(ggplot(sum.co, aes(x = Variable_plot, y = Estimate, color = SigLeg)) + theme(legend.text = element_text(size = 8), legend.title = element_text(size = 8), legend.position = "bottom", legend.direction = "horizontal") +
                      geom_line() + scale_color_discrete(name = "Significance"))
 
 # save full plot
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Figures/Drivers Analysis/Weighted Results")
-ytitle <- text_grob("Partial Residual", size = 18, face = "bold", rot = 90)
-png(width = 1050, height = 950, filename = "Drivers_PartialResiduals.png")
+setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Drafts/For Submission - PLoS One/Figures")
+tiff("Fig6.tiff", width = 1750, height = 1750, units = "px", res=300)
+ytitle <- text_grob("Partial Residual", size = 8, face = "bold", rot = 90)
 grid.arrange(arrangeGrob(dhw1_resid_plot + ggtitle("a)"), 
                          par_resid_plot + ggtitle("b)"),
                          depth_resid_plot + ggtitle("c)"),
@@ -410,11 +423,11 @@ intSurfplot.fun <- function(var1, var2, mod, dat){
   
   ggplot(new_temp, aes(x = .data[[v1]], y = .data[[v2]])) + 
     geom_raster(aes(fill=pred_ble)) + 
-    scale_fill_viridis_c(name = "Predicted Bleaching (%)", breaks = c(0,2.5,5,7.5,10), labels = c(0, (2.5^2), 25, (7.5^2), 100), limits=c(-0.1,10.1), na.value = "black") +
+    scale_fill_viridis_c(name = "Predicted % Bleached", breaks = c(0,2.5,5,7.5,10), labels = c(0, (2.5^2), 25, (7.5^2), 100), limits=c(-0.1,10.1), na.value = "black") +
     geom_point(data = d, aes(x = .data[[v1]], y = .data[[v2]]),
-               shape = 21, size = 3, stroke = 1, color = "black") +
+               shape = 21, size = 1, stroke = 0.5, color = "black") +
     theme(
-      text = element_text(size = 20),
+      text = element_text(size = 8),
       axis.text = element_text(color = "black")
     )
 
@@ -424,14 +437,14 @@ intSurfplot.fun <- function(var1, var2, mod, dat){
 ### interactions with acute stress:
 dhw_int_plot <- intSurfplot.fun("DHW.MeanMax.YR01_mn_s", "DHW.MeanMax.YR10YR01_mn_s", final_mod, hcbc_complete) +
   ggtitle("a)") +
-  xlab("Acute Thermal Stress (DHW)") + 
+  xlab("Acute Thermal Stress") + 
   scale_x_continuous(expand = c(0,0), breaks = c((0-dhw1_mn)/dhw1_sd, (3-dhw1_mn)/dhw1_sd, (6-dhw1_mn)/dhw1_sd, (9-dhw1_mn)/dhw1_sd), labels = c(0,3,6,9)) +
-  ylab("Historical Thermal Stress (DHW)\n") +
+  ylab("Historical Thermal Stress") +
   scale_y_continuous(expand = c(0,0), breaks = c((0-dhw10_mn)/dhw10_sd, (3-dhw10_mn)/dhw10_sd, (6-dhw10_mn)/dhw10_sd, (9-dhw10_mn)/dhw10_sd, (12-dhw10_mn)/dhw10_sd), labels = c(0,3,6,9,12)) 
 
 dhw_tour_int_plot <- intSurfplot.fun("DHW.MeanMax.YR01_mn_s", "TourRec_10yrAvgPUD_mn_log_s", final_mod, hcbc_complete) +
   ggtitle("b)") +
-  xlab("\nAcute Thermal Stress (DHW)") + 
+  xlab("Acute Thermal Stress") + 
   scale_x_continuous(expand = c(0,0), breaks = c((0-dhw1_mn)/dhw1_sd, (3-dhw1_mn)/dhw1_sd, (6-dhw1_mn)/dhw1_sd, (9-dhw1_mn)/dhw1_sd), labels = c(0,3,6,9)) +
   ylab("Tourism & Recreation") +
   scale_y_continuous(expand = c(0,0), breaks = c((log(1)-tou_mn)/tou_sd, (log(10)-tou_mn)/tou_sd, (log(100)-tou_mn)/tou_sd, (log(1000)-tou_mn)/tou_sd), labels = c(1,10,100,1000))
@@ -444,32 +457,31 @@ dhw_legend <- g_legend(dhw_int_plot +
                                #aspect.ratio = 1, axis.text = element_text(colour = 1, size = 12),
                                legend.background = element_blank()) +
                          guides(size = guide_legend(nrow = 1)) + 
-                         guides(fill=guide_colourbar(barwidth=15))) ## save legend as separate object
+                         guides(fill=guide_colourbar(barwidth=10, barheight = 1))) ## save legend as separate object
 
-dhw <- grid.arrange(dhw_int_plot + xlab("") + theme(legend.position = "none"), 
-                    dhw_tour_int_plot + xlab("") + theme(legend.position = "none"), nrow = 2,
-                    bottom = text_grob("Acute Thermal Stress (DHW)", size = 20))
+dhw <- grid.arrange(dhw_int_plot + theme(legend.position = "none"), 
+                    dhw_tour_int_plot + theme(legend.position = "none"), nrow = 2)
 
 ### interactions with susceptibility  
 sus_dep_int_plot <- intSurfplot.fun("SiteSuscp_mn_log_s", "Depth_ft_mn_s", final_mod, hcbc_complete) +
   ggtitle("c)") +
-  xlab("Susceptibility Score") + 
+  xlab("Taxonomic Susceptibility Score") + 
   scale_x_continuous(expand = c(0,0), breaks = c((log(2)-sus_mn)/sus_sd, (log(2.5)-sus_mn)/sus_sd, (log(3)-sus_mn)/sus_sd, (log(3.5)-sus_mn)/sus_sd, (log(4)-sus_mn)/sus_sd), labels = seq(2,4,by=.5)) +  ylab("Depth (ft)") +
-  ylab("\nDepth (ft)\n") +
+  ylab("Depth") +
   scale_y_continuous(expand = c(0,0), breaks = c((10-dep_mn)/dep_sd, (30-dep_mn)/dep_sd, (50-dep_mn)/dep_sd, (70-dep_mn)/dep_sd), labels = c(10,30,50,70)) 
 
 sus_hist_int_plot <- intSurfplot.fun("SiteSuscp_mn_log_s", "PctBleached_hist_mn_s", final_mod, hcbc_complete) +
   ggtitle("d)") +
-  xlab("Susceptibility Score") + 
+  xlab("Taxonomic Susceptibility Score") + 
   scale_x_continuous(expand = c(0,0), breaks = c((log(2)-sus_mn)/sus_sd, (log(2.5)-sus_mn)/sus_sd, (log(3)-sus_mn)/sus_sd, (log(3.5)-sus_mn)/sus_sd, (log(4)-sus_mn)/sus_sd), labels = seq(2,4,by=.5)) +  
-  ylab("\nHistorical Bleaching (%)\n") +
+  ylab("Historical % Bleached") +
   scale_y_continuous(expand = c(0,0), breaks = c((10-hist_mn)/hist_sd, (20-hist_mn)/hist_sd, (30-hist_mn)/hist_sd, (40-hist_mn)/hist_sd, (50-hist_mn)/hist_sd, (60-hist_mn)/hist_sd), labels = c(10, 20,30,40,50,60))
 
 sus_urb_int_plot <- intSurfplot.fun("SiteSuscp_mn_log_s", "Urban_runoff_mn_sqrt_s", final_mod, hcbc_complete) +
   ggtitle("e)") +
-  xlab("Susceptibility Score") + 
+  xlab("Taxonomic Susceptibility Score") + 
   scale_x_continuous(expand = c(0,0), breaks = c((log(2)-sus_mn)/sus_sd, (log(2.5)-sus_mn)/sus_sd, (log(3)-sus_mn)/sus_sd, (log(3.5)-sus_mn)/sus_sd, (log(4)-sus_mn)/sus_sd), labels = seq(2,4,by=.5)) +  
-  ylab("\nUrban Run-off") +
+  ylab("Urban Run-off") +
   scale_y_continuous(expand = c(0,0), breaks = c((sqrt(0)-urb_mn)/urb_sd, (sqrt(0.05)-urb_mn)/urb_sd, (sqrt(0.2)-urb_mn)/urb_sd, (sqrt(0.4)-urb_mn)/urb_sd, (sqrt(0.6)-urb_mn)/urb_sd), labels = c(0,0.05,0.2,0.4,0.6))
 
 # combine plots and save --
@@ -480,16 +492,15 @@ sus_legend <- g_legend(sus_dep_int_plot +
                                legend.background = element_blank()) + 
                          guides(fill=guide_colourbar(barheight=10)) + 
                          guides(size=guide_legend(keywidth=0.35, keyheight=0.35, default.unit="inch")))
-btitle <- text_grob("Taxonomic Susceptibility", size = 20)
 
-sus <- grid.arrange(sus_dep_int_plot + xlab("") + theme(legend.position = "none"), 
-                    sus_hist_int_plot + xlab("") + theme(legend.position = "none"), 
-                    sus_urb_int_plot + xlab("") + theme(legend.position = "none"), 
-                    nrow = 2, 
-                    bottom = btitle)
+sus <- grid.arrange(sus_dep_int_plot + theme(legend.position = "none"), 
+                    sus_hist_int_plot + theme(legend.position = "none"), 
+                    sus_urb_int_plot + theme(legend.position = "none"), 
+                    nrow = 2)
 
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Figures/Drivers Analysis/Weighted Results")
-png(width = 1450, height = 950, filename = "Drivers_Int_Wtd_all.png")
+
+setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Drafts/For Submission - PLoS One/Figures")
+tiff("Fig7.tiff", width = 2100, height = 1600, units = "px", res=300)
 grid.arrange(arrangeGrob(dhw, sus, nrow = 1, widths = c(2,4)), dhw_legend, heights = c(10,1), nrow = 2)
 dev.off()
 
@@ -556,7 +567,7 @@ pertDat_fun <- function(var, var_s, trans = "none", dat, mod, pert = 1, summary 
   }
   d$pred.pert.minus <- predict(m, d)
   
-  d2 <- d[,c("Cluster_DepthBin_ID", "predict_ble", "pred.pert.plus", "pred.pert.minus")]
+  d2 <- d[,c("Bluster", "predict_ble", "pred.pert.plus", "pred.pert.minus")]
   
   d2$ble_inc <- d2$pred.pert.plus - d2$predict_ble
   d2$ble_dec <- d2$predict_ble - d2$pred.pert.minus
@@ -611,10 +622,10 @@ avg_pert_plot <- ggplot() +
         legend.text = element_text(size = 16),
         legend.title = element_blank(),
         text = element_text(size = 16)) +
-  ylab("Predicted Bleaching (%)\n") +
+  ylab("Predicted % Bleached\n") +
   xlab("") +
-  scale_x_discrete(labels = c("Acute Thermal Stress (DHW)", "Historic Thermal Stress (DHW)", "Depth (ft)", "Historic Bleaching (%)", 
-                              "Susceptibility", "Surface Light (PAR)", "Sewage Effluent", "Tourism & Recreation", "Urban Run-off")) +
+  scale_x_discrete(labels = c("Acute Thermal Stress", "Historic Thermal Stress", "Depth", "Historic % Bleached", 
+                              "Taxonomic Susceptibility Score", "Surface Light", "Sewage Effluent", "Tourism & Recreation", "Urban Run-off")) +
   scale_y_continuous(breaks = c(3,4,5), labels = c(9,16,25)) +
   scale_color_manual(name = "", 
                      breaks = c("inc", "dec"), 
@@ -630,6 +641,8 @@ dev.off()
 ### ### ### ### ### ### ### ### ###
 ### v. PLOT SITE LEVEL PERTURBS ###
 ### ### ### ### ### ### ### ### ###
+
+#### site level predictions for most effective management option ####
 
 ## only look @ variables that can be effectively managed: run-off, effluent, PAR, suscp, & tourism
 # we will hold acute thermal stress @ 90-95th percentile instead of at mean to simulate a heating event
@@ -659,6 +672,9 @@ pred_dec.th <- pred_dec.th %>%
   mutate(ThirdLargestDec = str_remove_all(ThirdLargestDec, "ble_dec "))
 pred_pert_dat <- pred_dec.th[,c(1,7:14)]
 
+pred_pert_dat$Depth_bin <- word(pred_pert_dat$Bluster,-1)
+
+
 # function to create maps based upon data and model and specific ranking 
 map_p_fun <- function(dat, fill.var, mod){
   var = fill.var
@@ -666,6 +682,7 @@ map_p_fun <- function(dat, fill.var, mod){
   m = mod
   
   # import zone shapefile - readOGR() converts the shapefile into a Spatial Polygons Data Frame
+  ## shapefiles available for download in: https://www.nodc.noaa.gov/archive/arc0186/0239862/1.1/data/0-data/
   zones = readOGR("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Data/Bleaching Assessments/Combined/Current Database/For Analysis/Shapefiles/HCBC_Zones.shp")
   
   sum.co <- data.frame(summary(m)$coefficients)
@@ -705,18 +722,18 @@ map_p_fun <- function(dat, fill.var, mod){
   maui_p= ### plot for all variables perturbed
     ggmap(isl_base.maui) + # plots base map
     geom_sf(data = ISL_zone.maui,fill=NA,color="white",alpha=.5, inherit.aes = FALSE) + # plots zones, transparent with white border
-    geom_point(aes(x = Longitude_DD_mn, y = Latitude_DD_mn, fill = .data[[var]], shape = Depth_bin), color = "black", data = as.data.frame(d), size = 3) +
+    geom_point(aes(x = Longitude_DD_mn, y = Latitude_DD_mn, fill = .data[[var]], shape = Depth_bin), color = "black", data = as.data.frame(d), size = 2) +
     scale_color_manual(guide = F) +
     scale_fill_manual(values = col, drop = F) + # sets the palette for coloring the cluster points
     scale_shape_manual(values = c(24,25)) + 
     guides(fill=guide_legend(override.aes=list(shape=21))) +
-    geom_text(data = zone_coords.maui, aes(X, Y, label = NAME), colour = "white", size = 6) + # adds the text 
+    geom_text(data = zone_coords.maui, aes(X, Y, label = NAME), colour = "white", size = 3) + # adds the text 
     theme(
       axis.title = element_blank(),
-      axis.text = element_text(size = 18, colour = "black"),
-      title = element_text(size = 18),
+      axis.text = element_text(size = 8, colour = "black"),
+      title = element_text(size = 8),
       legend.position = "none",
-      legend.text = element_text(size = 16),
+      legend.text = element_text(size = 8),
       legend.box="vertical", 
       legend.margin=margin()
     ) +
@@ -740,7 +757,7 @@ map_p_fun <- function(dat, fill.var, mod){
     coord_sf(expand = F) +
     theme(
       axis.title = element_blank(),
-      axis.text = element_text(size = 18, colour = "black"),
+      axis.text = element_text(size = 8, colour = "black"),
       legend.position = "none"
     ) +
     scale_x_discrete(breaks = c(-159, -158, -157, -156, -155, -154, -153), labels = c(-159, -158, -157, -156, -155, -154, -153)) +
@@ -754,12 +771,12 @@ map_p_fun <- function(dat, fill.var, mod){
   
   hawaii_nw=ggmap(isl_base.haw.nw) +
     geom_sf(data = ISL_zone.haw.nw,fill=NA,color="white", inherit.aes = FALSE) +
-    geom_point(aes(x = Longitude_DD_mn, y = Latitude_DD_mn, shape = Depth_bin, fill = .data[[var]]), data = as.data.frame(pred_pert_dat[ which(pred_pert_dat$ZoneName == "Hawaii_NW"),]), size = 4) +
+    geom_point(aes(x = Longitude_DD_mn, y = Latitude_DD_mn, shape = Depth_bin, fill = .data[[var]]), data = as.data.frame(pred_pert_dat[ which(pred_pert_dat$ZoneName == "Hawaii_NW"),]), size = 2) +
     scale_fill_manual(values = col, drop = F) +
     scale_shape_manual(values = c(24,25)) +
     theme(
       axis.title = element_blank(),
-      axis.text = element_text(size = 18, colour = "black"),
+      axis.text = element_text(size = 8, colour = "black"),
       legend.position = "none"
     ) +
     scale_x_continuous(limits = c(-156.1,-155.82), breaks = seq(-156.1, -155.8, len = 4)) +
@@ -773,12 +790,12 @@ map_p_fun <- function(dat, fill.var, mod){
   
   hawaii_sw=ggmap(isl_base.haw.sw) +
     geom_sf(data = ISL_zone.haw.sw,fill=NA,color="white", inherit.aes = FALSE) +
-    geom_point(aes(x = Longitude_DD_mn, y = Latitude_DD_mn, shape = Depth_bin, fill = .data[[var]]), data = as.data.frame(pred_pert_dat[ which(pred_pert_dat$ZoneName == "Hawaii_SW"),]), size = 4) +
+    geom_point(aes(x = Longitude_DD_mn, y = Latitude_DD_mn, shape = Depth_bin, fill = .data[[var]]), data = as.data.frame(pred_pert_dat[ which(pred_pert_dat$ZoneName == "Hawaii_SW"),]), size = 2) +
     scale_fill_manual(values = col, drop = F) +
     scale_shape_manual(values = c(24,25)) +
     theme(
       axis.title = element_blank(),
-      axis.text = element_text(size = 18, colour = "black"),
+      axis.text = element_text(size = 8, colour = "black"),
       legend.position = "none"
     ) +
     scale_x_continuous(limits = c(-156.035,-155.85)) +
@@ -793,8 +810,8 @@ map_p_fun <- function(dat, fill.var, mod){
                   panel.background=element_blank(),panel.grid.major=element_blank(),
                   panel.grid.minor=element_blank(),plot.background=element_blank(),
                   panel.border = element_rect(colour = "white", fill=NA, size=2))
-  h_nw <- hawaii_nw + remove + ggtitle("  Northwest") + theme(plot.title = element_text(size = 16, colour = "white", margin = margin(t = 4, b = -20)))
-  h_sw <- hawaii_sw + remove + ggtitle("  Southwest") + theme(plot.title = element_text(size = 16, colour = "white", margin = margin(t = 4, b = -20)))
+  h_nw <- hawaii_nw + remove + ggtitle("  Northwest") + theme(plot.title = element_text(size = 8, colour = "white", margin = margin(t = 4, b = -20)))
+  h_sw <- hawaii_sw + remove + ggtitle(" Southwest") + theme(plot.title = element_text(size = 8, colour = "white", margin = margin(t = 4, b = -10)))
   nw <- ggplotGrob(h_nw)
   sw <- ggplotGrob(h_sw)
   
@@ -802,17 +819,17 @@ map_p_fun <- function(dat, fill.var, mod){
   hawaii_all_p <- hawaii + 
     geom_segment(aes(x = -156.14, y = 19.42, xend = -157, yend = 16.75), colour="white") +
     annotation_custom(grob = nw, xmin = -159.8, xmax = -156.5,
-                      ymin = 16.5, ymax = 22.7) +
-    geom_rect(aes(xmin = -156.14, xmax = -155.79, ymin = 19.42, ymax =  20.25), # nw
+                      ymin = 16.2, ymax = 22.7) +
+    geom_rect(aes(xmin = -156.14, xmax = -155.75, ymin = 19.42, ymax =  20.25), # nw
               fill = "transparent", color = "white", size = 1) +
     
     geom_segment(aes(x = -155.83, y = 18.96, xend = -154.3, yend = 16.9), colour="white") +
     annotation_custom(grob = sw, xmin = -154.6, xmax = -152.6,
-                      ymin = 16, ymax = 22) +
-    geom_rect(aes(xmin = -156.035, xmax = -155.83, ymin = 18.96, ymax =  19.54), # sw
+                      ymin = 15.5, ymax = 21.5) +
+    geom_rect(aes(xmin = -156.035, xmax = -155.83, ymin = 17.96, ymax =  19.54), # sw
               fill = "transparent", color = "white", size = 1) +
     
-    ggtitle("Hawaii") + theme(title = element_text(size = 18))
+    ggtitle("Hawaii") + theme(title = element_text(size = 8))
   
   
   ## ## ## ## ##
@@ -833,16 +850,16 @@ map_p_fun <- function(dat, fill.var, mod){
   
   oahu_p=ggmap(isl_base.oahu) +
     geom_sf(data = ISL_zone.oahu[ which(ISL_zone.oahu$ZoneName %in% c("Oahu_S", "Oahu_E")),],fill=NA,color="white",alpha=.5, inherit.aes = FALSE) + # plots zones
-    geom_point(aes(x = Longitude_DD_mn, y = Latitude_DD_mn, shape = Depth_bin, fill = .data[[var]]), data = as.data.frame(pred_pert_dat), color = "black", size = 4) +
+    geom_point(aes(x = Longitude_DD_mn, y = Latitude_DD_mn, shape = Depth_bin, fill = .data[[var]]), data = as.data.frame(pred_pert_dat), color = "black", size = 2) +
     scale_fill_manual(values = col, drop = F) +
     scale_shape_manual(values = c(24,25)) +
     coord_sf(expand = F) +
-    geom_text(data = zone_coords.oahu, aes(X, Y, label = NAME), colour = "white", size = 8) + # labels, remove for NW and SW Hawaii
+    geom_text(data = zone_coords.oahu, aes(X, Y, label = NAME), colour = "white", size = 4) + # labels
     theme(
       axis.title = element_blank(),
-      axis.text = element_text(size = 18, colour = "black"),
+      axis.text = element_text(size = 8, colour = "black"),
       legend.position = "none",
-      title = element_text(size = 18),
+      title = element_text(size = 8),
       legend.key.width = unit(1, "inch") 
     ) +
     ggtitle("Oahu") +
@@ -880,10 +897,10 @@ map_p_fun <- function(dat, fill.var, mod){
     guides(fill=guide_legend(nrow = 6, title.position="top", title.hjust = 0.5, override.aes=list(shape=21))) +
     theme(
       axis.title = element_blank(),
-      axis.text = element_text(size = 18, colour = "black"),
-      title = element_text(size = 18),
+      axis.text = element_text(size = 10, colour = "black"),
+      title = element_text(size = 10),
       legend.position = "bottom",
-      legend.text = element_text(size = 16),
+      legend.text = element_text(size = 10),
       legend.box="vertical", 
       legend.margin=margin()
     )
@@ -897,8 +914,9 @@ map_p_fun <- function(dat, fill.var, mod){
                pert_leg, nrow = 2)
 }
 
-setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Figures/Drivers Analysis/Weighted Results")
-png(width = 900, height = 850, filename = "Drivers_Pert_1SD_1st_Map.png")
+# setwd("") <- set location where you want to save the files
+setwd("C:/Users/Morgan.Winston/Desktop/MHI NWHI 2019 Coral Bleaching/Projects/2019 Manuscript/Drafts/For Submission - PLoS One/Figures")
+tiff("Fig8.tiff", width = 1900, height = 1800, units = "px", res=300)
 map_p_fun(pred_pert_dat, "FirstLargestDec", final_mod)
 dev.off()
 
